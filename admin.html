@@ -50,7 +50,6 @@
 
 <h1>🔐 管理后台</h1>
 
-<!-- ===== 管理员登录区 ===== -->
 <div id="adminLoginArea" class="login-notice">
   <strong>⚠️ 请输入管理密码</strong>
   <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -60,7 +59,6 @@
   </div>
 </div>
 
-<!-- ===== 管理内容区（登录后显示） ===== -->
 <div id="adminContent" style="display:none;">
   <div class="tabs">
     <button class="active" onclick="switchTab('codes')">🔑 使用码管理</button>
@@ -82,7 +80,6 @@
   </div>
 </div>
 
-<!-- ===== 文章编辑弹窗 ===== -->
 <div id="articleModal" class="modal">
   <div class="modal-content">
     <h2 id="articleModalTitle">写新文章</h2>
@@ -99,50 +96,46 @@
 
 <script>
 // ============================================================
-// 配置区 - 请在这里修改你的 Supabase 信息
+// 配置区 - 请修改成你自己的 Supabase 信息
 // ============================================================
-const SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co';
-// 重要：从 Supabase 后台 Settings -> API 复制 anon public 密钥
-// 注意：密钥前后不要有多余空格或引号
-const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
+var SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co';
+var SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
 // ============================================================
 
 // ===== 管理员登录 =====
-async function adminLogin() {
-    const pwd = document.getElementById('adminPassword').value;
-    const msg = document.getElementById('adminLoginMsg');
+function adminLogin() {
+    var pwd = document.getElementById('adminPassword').value;
+    var msg = document.getElementById('adminLoginMsg');
 
     if (!pwd) {
         msg.textContent = '请输入密码';
         return;
     }
 
-    try {
-        const response = await fetch(
-            SUPABASE_URL + '/rest/v1/admin_users?username=eq.admin&select=password_hash',
-            {
-                headers: {
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-                }
-            }
-        );
+    var url = SUPABASE_URL + '/rest/v1/admin_users?username=eq.admin&select=password_hash';
 
+    fetch(url, {
+        headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        }
+    })
+    .then(function(response) {
         if (!response.ok) {
-            msg.textContent = '查询失败，请重试';
+            msg.textContent = '查询失败，状态码: ' + response.status;
             return;
         }
-
-        const data = await response.json();
-
+        return response.json();
+    })
+    .then(function(data) {
         if (!data || data.length === 0) {
             msg.textContent = '管理员账号不存在';
             return;
         }
-
-        const isMatch = await bcrypt.compare(pwd, data[0].password_hash);
-
-        if (isMatch) {
+        return bcrypt.compare(pwd, data[0].password_hash);
+    })
+    .then(function(isMatch) {
+        if (isMatch === true) {
             sessionStorage.setItem('admin_logged_in', 'true');
             document.getElementById('adminLoginArea').style.display = 'none';
             document.getElementById('adminContent').style.display = 'block';
@@ -150,12 +143,14 @@ async function adminLogin() {
             loadArticles();
             msg.textContent = '';
             document.getElementById('adminPassword').value = '';
-        } else {
+        } else if (isMatch === false) {
             msg.textContent = '密码错误';
         }
-    } catch (err) {
+    })
+    .catch(function(err) {
+        console.error('登录错误:', err);
         msg.textContent = '网络错误，请重试';
-    }
+    });
 }
 
 document.getElementById('adminPassword').addEventListener('keydown', function(e) {
@@ -172,12 +167,14 @@ if (sessionStorage.getItem('admin_logged_in') === 'true') {
 
 // ===== 标签切换 =====
 function switchTab(tab) {
-    document.querySelectorAll('.tab-content').forEach(function(el) {
-        el.classList.remove('active');
-    });
-    document.querySelectorAll('.tabs button').forEach(function(el) {
-        el.classList.remove('active');
-    });
+    var tabs = document.querySelectorAll('.tab-content');
+    for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.remove('active');
+    }
+    var btns = document.querySelectorAll('.tabs button');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.remove('active');
+    }
     document.getElementById('tab-' + tab).classList.add('active');
     event.target.classList.add('active');
     if (tab === 'articles') loadArticles();
@@ -185,112 +182,130 @@ function switchTab(tab) {
 }
 
 // ===== 通用请求 =====
-async function supabaseAdminFetch(endpoint, options) {
+function supabaseAdminFetch(endpoint, options) {
     options = options || {};
-    const headers = {
+    var url = SUPABASE_URL + '/rest/v1/' + endpoint;
+    var headers = {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
     };
     if (options.headers) {
-        Object.assign(headers, options.headers);
+        for (var key in options.headers) {
+            headers[key] = options.headers[key];
+        }
     }
-    const res = await fetch(SUPABASE_URL + '/rest/v1/' + endpoint, {
+    return fetch(url, {
         method: options.method || 'GET',
         headers: headers,
         body: options.body || undefined
     });
-    return res;
 }
 
 // ========== 使用码 ==========
-async function loadCodes() {
-    try {
-        const res = await supabaseAdminFetch('access_codes?select=*&order=id.asc');
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const tbody = document.getElementById('codeList');
+function loadCodes() {
+    supabaseAdminFetch('access_codes?select=*&order=id.asc')
+    .then(function(res) {
+        if (!res.ok) throw new Error('加载失败');
+        return res.json();
+    })
+    .then(function(data) {
+        var tbody = document.getElementById('codeList');
         if (!data || data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无使用码</td></tr>';
             return;
         }
-        tbody.innerHTML = data.map(function(item) {
-            return '<tr>' +
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            var item = data[i];
+            var statusClass = item.is_active ? 'status-active' : 'status-inactive';
+            var statusText = item.is_active ? '✅ 有效' : '⛔ 停用';
+            var btnClass = item.is_active ? 'btn-warning' : 'btn-success';
+            var btnText = item.is_active ? '停用' : '启用';
+            html += '<tr>' +
                 '<td>' + item.id + '</td>' +
                 '<td><span class="code-badge">' + item.code + '</span></td>' +
                 '<td>' + (item.remark || '-') + '</td>' +
-                '<td><span class="status-badge ' + (item.is_active ? 'status-active' : 'status-inactive') + '">' + (item.is_active ? '✅ 有效' : '⛔ 停用') + '</span></td>' +
+                '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
                 '<td>' +
-                '<button class="btn ' + (item.is_active ? 'btn-warning' : 'btn-success') + '" onclick="toggleCode(' + item.id + ', ' + (!item.is_active) + ')" style="padding:4px 12px;font-size:12px;">' + (item.is_active ? '停用' : '启用') + '</button> ' +
+                '<button class="btn ' + btnClass + '" onclick="toggleCode(' + item.id + ', ' + (!item.is_active) + ')" style="padding:4px 12px;font-size:12px;">' + btnText + '</button> ' +
                 '<button class="btn btn-danger" onclick="deleteCode(' + item.id + ')" style="padding:4px 12px;font-size:12px;">删除</button>' +
                 '</td>' +
                 '</tr>';
-        }).join('');
-    } catch(e) {
+        }
+        tbody.innerHTML = html;
+    })
+    .catch(function(err) {
         document.getElementById('codeList').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
-    }
+    });
 }
 
-async function addCode() {
-    const code = document.getElementById('newCode').value.trim();
-    const remark = document.getElementById('newRemark').value.trim();
+function addCode() {
+    var code = document.getElementById('newCode').value.trim();
+    var remark = document.getElementById('newRemark').value.trim();
     if (code.length !== 18) { alert('请输入18位使用码'); return; }
-    try {
-        await supabaseAdminFetch('access_codes', {
-            method: 'POST',
-            body: JSON.stringify({ code: code, remark: remark, is_active: true })
-        });
+    supabaseAdminFetch('access_codes', {
+        method: 'POST',
+        body: JSON.stringify({ code: code, remark: remark, is_active: true })
+    })
+    .then(function() {
         document.getElementById('newCode').value = '';
         document.getElementById('newRemark').value = '';
         loadCodes();
-    } catch(e) { alert('添加失败'); }
+    })
+    .catch(function() { alert('添加失败'); });
 }
 
-async function toggleCode(id, newStatus) {
-    try {
-        await supabaseAdminFetch('access_codes?id=eq.' + id, {
-            method: 'PATCH',
-            body: JSON.stringify({ is_active: newStatus })
-        });
-        loadCodes();
-    } catch(e) { alert('操作失败'); }
+function toggleCode(id, newStatus) {
+    supabaseAdminFetch('access_codes?id=eq.' + id, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: newStatus })
+    })
+    .then(function() { loadCodes(); })
+    .catch(function() { alert('操作失败'); });
 }
 
-async function deleteCode(id) {
+function deleteCode(id) {
     if (!confirm('确定删除吗？')) return;
-    try {
-        await supabaseAdminFetch('access_codes?id=eq.' + id, { method: 'DELETE' });
-        loadCodes();
-    } catch(e) { alert('删除失败'); }
+    supabaseAdminFetch('access_codes?id=eq.' + id, { method: 'DELETE' })
+    .then(function() { loadCodes(); })
+    .catch(function() { alert('删除失败'); });
 }
 
 // ========== 文章 ==========
-async function loadArticles() {
-    try {
-        const res = await supabaseAdminFetch('articles?select=*&order=id.desc');
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const tbody = document.getElementById('articleList');
+function loadArticles() {
+    supabaseAdminFetch('articles?select=*&order=id.desc')
+    .then(function(res) {
+        if (!res.ok) throw new Error('加载失败');
+        return res.json();
+    })
+    .then(function(data) {
+        var tbody = document.getElementById('articleList');
         if (!data || data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="empty">还没有文章</td></tr>';
             return;
         }
-        tbody.innerHTML = data.map(function(item) {
-            return '<tr>' +
+        var html = '';
+        for (var i = 0; i < data.length; i++) {
+            var item = data[i];
+            var date = new Date(item.created_at).toLocaleString();
+            html += '<tr>' +
                 '<td>' + item.id + '</td>' +
                 '<td><code>' + item.slug + '</code></td>' +
                 '<td>' + item.title + '</td>' +
-                '<td>' + new Date(item.created_at).toLocaleString() + '</td>' +
+                '<td>' + date + '</td>' +
                 '<td>' +
                 '<button class="btn btn-primary" onclick="editArticle(' + item.id + ')" style="padding:4px 12px;font-size:12px;">✏️ 编辑</button> ' +
                 '<button class="btn btn-danger" onclick="deleteArticle(' + item.id + ')" style="padding:4px 12px;font-size:12px;">🗑️ 删除</button>' +
                 '</td>' +
                 '</tr>';
-        }).join('');
-    } catch(e) {
+        }
+        tbody.innerHTML = html;
+    })
+    .catch(function(err) {
         document.getElementById('articleList').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
-    }
+    });
 }
 
 function openArticleModal(data) {
@@ -321,7 +336,7 @@ document.getElementById('editSlug').addEventListener('input', function() {
     document.getElementById('slugPreview').textContent = this.value || '...';
 });
 
-async function saveArticle() {
+function saveArticle() {
     var id = document.getElementById('editArticleId').value;
     var slug = document.getElementById('editSlug').value.trim();
     var title = document.getElementById('editTitle').value.trim();
@@ -329,38 +344,39 @@ async function saveArticle() {
     if (!slug || !title || !content) { alert('请填写完整信息'); return; }
     if (!/^[a-zA-Z0-9\-]+$/.test(slug)) { alert('别名只能包含字母、数字和短横线(-)'); return; }
 
-    try {
-        var url = 'articles';
-        var method = 'POST';
-        var body = { slug: slug, title: title, content: content };
-        if (id) {
-            url = 'articles?id=eq.' + id;
-            method = 'PATCH';
-        }
-        var res = await supabaseAdminFetch(url, {
-            method: method,
-            body: JSON.stringify(body)
-        });
-        if (!res.ok) { var err = await res.json(); alert(err.message || '保存失败'); return; }
+    var url = 'articles';
+    var method = 'POST';
+    var body = { slug: slug, title: title, content: content };
+    if (id) {
+        url = 'articles?id=eq.' + id;
+        method = 'PATCH';
+    }
+    supabaseAdminFetch(url, {
+        method: method,
+        body: JSON.stringify(body)
+    })
+    .then(function(res) {
+        if (!res.ok) { alert('保存失败'); return; }
         closeArticleModal();
         loadArticles();
-    } catch(e) { alert('保存失败'); }
+    })
+    .catch(function() { alert('保存失败'); });
 }
 
-async function editArticle(id) {
-    try {
-        var res = await supabaseAdminFetch('articles?id=eq.' + id);
-        var data = await res.json();
+function editArticle(id) {
+    supabaseAdminFetch('articles?id=eq.' + id)
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
         if (data && data.length > 0) openArticleModal(data[0]);
-    } catch(e) { alert('加载文章失败'); }
+    })
+    .catch(function() { alert('加载文章失败'); });
 }
 
-async function deleteArticle(id) {
+function deleteArticle(id) {
     if (!confirm('确定删除吗？')) return;
-    try {
-        await supabaseAdminFetch('articles?id=eq.' + id, { method: 'DELETE' });
-        loadArticles();
-    } catch(e) { alert('删除失败'); }
+    supabaseAdminFetch('articles?id=eq.' + id, { method: 'DELETE' })
+    .then(function() { loadArticles(); })
+    .catch(function() { alert('删除失败'); });
 }
 
 document.getElementById('articleModal').addEventListener('click', function(e) {
