@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>内容列表</title>
+  <style>
+    body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 15px; flex-wrap: wrap; }
+    .logout { color: red; cursor: pointer; text-decoration: underline; }
+    .article-list { list-style: none; padding: 0; }
+    .article-list li { padding: 15px 0; border-bottom: 1px solid #f0f0f0; }
+    .article-list a { font-size: 18px; color: #1a1a2e; text-decoration: none; }
+    .article-list a:hover { color: #4a9eff; text-decoration: underline; }
+    .empty { text-align: center; color: #999; padding: 40px 0; }
+    .user-info { font-size: 14px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>📚 内容列表</h1>
+      <span class="user-info">当前使用码：<span id="userCode"></span></span>
+    </div>
+    <span class="logout" onclick="logout()">退出</span>
+  </div>
+  <ul class="article-list" id="articleList"><li class="empty">加载中...</li></ul>
+
+  <script>
+    // ============================================================
+    // ⚠️ 改成你自己的 Supabase 信息
+    // ============================================================
+    const SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
+    // ============================================================
+
+    const userCode = sessionStorage.getItem('user_code');
+    if (!userCode) {
+      window.location.href = '/index.html';
+    }
+    document.getElementById('userCode').textContent = userCode;
+
+    async function loadArticles() {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/articles?select=id,slug,title,created_at&order=id.desc`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+
+        if (!response.ok) throw new Error('加载失败');
+
+        const data = await response.json();
+        const list = document.getElementById('articleList');
+
+        if (!data || data.length === 0) {
+          list.innerHTML = '<li class="empty">暂无文章</li>';
+          return;
+        }
+
+        list.innerHTML = data.map(article => `
+          <li>
+            <a href="/article.html?slug=${article.slug}">${article.title}</a>
+            <span style="color:#999;font-size:13px;margin-left:10px;">${new Date(article.created_at).toLocaleDateString()}</span>
+          </li>
+        `).join('');
+      } catch (err) {
+        document.getElementById('articleList').innerHTML = '<li class="empty">加载失败，请刷新</li>';
+      }
+    }
+
+    function logout() {
+      sessionStorage.removeItem('user_code');
+      sessionStorage.removeItem('user_remark');
+      window.location.href = '/index.html';
+    }
+
+    loadArticles();
+  </script>
+</body>
+</html>

@@ -1,29 +1,71 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>我的经历</title>
-    <style>
-        body { max-width: 700px; margin: 40px auto; padding: 0 20px; 
-               font-family: -apple-system, sans-serif; line-height: 1.8; 
-               color: #222; background: #fafafa; }
-        h1 { font-size: 28px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
-        .post { margin: 30px 0; padding: 20px; background: white; 
-                border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-        .date { color: #999; font-size: 14px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录</title>
+  <style>
+    body { font-family: Arial; max-width: 400px; margin: 80px auto; padding: 20px; text-align: center; }
+    input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; text-transform: uppercase; letter-spacing: 2px; }
+    button { width: 100%; padding: 12px; margin-top: 10px; background: #4a9eff; color: #fff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+    #msg { margin-top: 10px; color: red; }
+  </style>
 </head>
 <body>
-    <h1>📖 我的经历</h1>
-    <p style="color: #666;">写给自己的记录，不需要别人看懂。</p>
+  <h1>🔑 输入使用码</h1>
+  <p style="color:#666;">请输入18位使用码登录</p>
+  <input id="codeInput" placeholder="例如：A1B2C3D4E5F6G7H8I9" maxlength="18" autofocus>
+  <button onclick="login()">登录</button>
+  <div id="msg"></div>
 
-    <div class="post">
-        <div class="date">2026-06-25</div>
-        <h2>第一篇：开始</h2>
-        <p>今天决定把自己的经历写下来。不是为了给谁看，就是想留下点什么。</p>
-        <p>等老了翻回来，能想起“原来我是这样走过来的”。</p>
-    </div>
+  <script>
+    // ============================================================
+    // ⚠️ 改成你自己的 Supabase 信息
+    // ============================================================
+    const SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
+    // ============================================================
 
-    <!-- 以后有新文章，复制上面 <div class="post"> 这一段，粘在这里就行 -->
+    document.getElementById('codeInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') login();
+    });
+
+    async function login() {
+      const code = document.getElementById('codeInput').value.trim();
+      if (code.length !== 18) {
+        document.getElementById('msg').textContent = '请输入18位使用码';
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/access_codes?code=eq.${code}&is_active=eq.true&select=code,remark`,
+          {
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          }
+        );
+
+        if (!response.ok) {
+          document.getElementById('msg').textContent = '查询失败，请重试';
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+          sessionStorage.setItem('user_code', code);
+          sessionStorage.setItem('user_remark', data[0].remark || '');
+          window.location.href = '/dashboard.html';
+        } else {
+          document.getElementById('msg').textContent = '使用码无效或已停用';
+        }
+      } catch (err) {
+        document.getElementById('msg').textContent = '网络错误，请重试';
+      }
+    }
+  </script>
 </body>
 </html>

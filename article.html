@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文章</title>
+  <style>
+    body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.8; }
+    .back { display: inline-block; margin-bottom: 20px; color: #4a9eff; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    .content { background: #f9f9f9; padding: 30px; border-radius: 10px; min-height: 200px; }
+    .loading { text-align: center; color: #999; padding: 50px 0; }
+  </style>
+</head>
+<body>
+  <a href="/dashboard.html" class="back">← 返回列表</a>
+  <div class="content" id="articleContent"><div class="loading">⏳ 加载中...</div></div>
+
+  <script>
+    // ============================================================
+    // ⚠️ 改成你自己的 Supabase 信息
+    // ============================================================
+    const SUPABASE_URL = 'https://https://fihyvfmqmknrkwgjbxxs.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
+    // ============================================================
+
+    const userCode = sessionStorage.getItem('user_code');
+    if (!userCode) {
+      window.location.href = '/index.html';
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get('slug');
+
+    if (!slug) {
+      document.getElementById('articleContent').innerHTML = '<p style="color:red;">未指定文章</p>';
+    } else {
+      loadArticle(slug);
+    }
+
+    async function loadArticle(slug) {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/articles?slug=eq.${slug}&select=title,content`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+
+        if (!response.ok) throw new Error('加载失败');
+
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
+          document.getElementById('articleContent').innerHTML = '<p style="color:red;">文章不存在</p>';
+          return;
+        }
+
+        const article = data[0];
+        document.getElementById('articleContent').innerHTML = `
+          <h1>${article.title}</h1>
+          <hr>
+          <div>${article.content}</div>
+        `;
+      } catch (err) {
+        document.getElementById('articleContent').innerHTML = '<p style="color:red;">网络错误，请重试</p>';
+      }
+    }
+  </script>
+</body>
+</html>
