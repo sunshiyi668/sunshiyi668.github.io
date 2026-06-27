@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理后台</title>
-  <!-- bcryptjs 用于比对密码哈希 -->
   <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -99,264 +98,274 @@
 </div>
 
 <script>
-  // ============================================================
-  // ⚠️ 改成你自己的 Supabase 信息
-  // ============================================================
-  const SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
-  // ============================================================
+// ============================================================
+// 配置区 - 请在这里修改你的 Supabase 信息
+// ============================================================
+const SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co';
+// 重要：从 Supabase 后台 Settings -> API 复制 anon public 密钥
+// 注意：密钥前后不要有多余空格或引号
+const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
+// ============================================================
 
-  // ===== 管理员登录（查 Supabase 数据库验证） =====
-  async function adminLogin() {
+// ===== 管理员登录 =====
+async function adminLogin() {
     const pwd = document.getElementById('adminPassword').value;
     const msg = document.getElementById('adminLoginMsg');
-    
+
     if (!pwd) {
-      msg.textContent = '请输入密码';
-      return;
+        msg.textContent = '请输入密码';
+        return;
     }
 
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/admin_users?username=eq.admin&select=password_hash`,
-        {
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
+        const response = await fetch(
+            SUPABASE_URL + '/rest/v1/admin_users?username=eq.admin&select=password_hash',
+            {
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+                }
+            }
+        );
+
+        if (!response.ok) {
+            msg.textContent = '查询失败，请重试';
+            return;
         }
-      );
 
-      if (!response.ok) {
-        msg.textContent = '查询失败，请重试';
-        return;
-      }
+        const data = await response.json();
 
-      const data = await response.json();
+        if (!data || data.length === 0) {
+            msg.textContent = '管理员账号不存在';
+            return;
+        }
 
-      if (!data || data.length === 0) {
-        msg.textContent = '管理员账号不存在';
-        return;
-      }
+        const isMatch = await bcrypt.compare(pwd, data[0].password_hash);
 
-      // 用 bcryptjs 比对密码
-      const isMatch = await bcrypt.compare(pwd, data[0].password_hash);
-      
-      if (isMatch) {
-        sessionStorage.setItem('admin_logged_in', 'true');
-        document.getElementById('adminLoginArea').style.display = 'none';
-        document.getElementById('adminContent').style.display = 'block';
-        loadCodes();
-        loadArticles();
-        msg.textContent = '';
-        document.getElementById('adminPassword').value = '';
-      } else {
-        msg.textContent = '密码错误';
-      }
+        if (isMatch) {
+            sessionStorage.setItem('admin_logged_in', 'true');
+            document.getElementById('adminLoginArea').style.display = 'none';
+            document.getElementById('adminContent').style.display = 'block';
+            loadCodes();
+            loadArticles();
+            msg.textContent = '';
+            document.getElementById('adminPassword').value = '';
+        } else {
+            msg.textContent = '密码错误';
+        }
     } catch (err) {
-      msg.textContent = '网络错误，请重试';
+        msg.textContent = '网络错误，请重试';
     }
-  }
+}
 
-  document.getElementById('adminPassword').addEventListener('keydown', e => {
+document.getElementById('adminPassword').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') adminLogin();
-  });
+});
 
-  // ===== 页面加载时检查是否已登录 =====
-  if (sessionStorage.getItem('admin_logged_in') === 'true') {
+// ===== 页面加载检查登录状态 =====
+if (sessionStorage.getItem('admin_logged_in') === 'true') {
     document.getElementById('adminLoginArea').style.display = 'none';
     document.getElementById('adminContent').style.display = 'block';
     loadCodes();
     loadArticles();
-  }
+}
 
-  // ===== 标签切换 =====
-  function switchTab(tab) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.tabs button').forEach(el => el.classList.remove('active'));
+// ===== 标签切换 =====
+function switchTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    document.querySelectorAll('.tabs button').forEach(function(el) {
+        el.classList.remove('active');
+    });
     document.getElementById('tab-' + tab).classList.add('active');
     event.target.classList.add('active');
     if (tab === 'articles') loadArticles();
     if (tab === 'codes') loadCodes();
-  }
+}
 
-  // ===== 通用 Supabase 请求（带 anon key） =====
-  async function supabaseAdminFetch(endpoint, options = {}) {
+// ===== 通用请求 =====
+async function supabaseAdminFetch(endpoint, options) {
+    options = options || {};
     const headers = {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
     };
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${endpoint}`, {
-      ...options,
-      headers: { ...headers, ...options.headers }
+    if (options.headers) {
+        Object.assign(headers, options.headers);
+    }
+    const res = await fetch(SUPABASE_URL + '/rest/v1/' + endpoint, {
+        method: options.method || 'GET',
+        headers: headers,
+        body: options.body || undefined
     });
     return res;
-  }
+}
 
-  // ========== 使用码 CRUD ==========
-  async function loadCodes() {
+// ========== 使用码 ==========
+async function loadCodes() {
     try {
-      const res = await supabaseAdminFetch('access_codes?select=*&order=id.asc');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const tbody = document.getElementById('codeList');
-      if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无使用码</td></tr>';
-        return;
-      }
-      tbody.innerHTML = data.map(item => `
-        <tr>
-          <td>${item.id}</td>
-          <td><span class="code-badge">${item.code}</span></td>
-          <td>${item.remark || '-'}</td>
-          <td><span class="status-badge ${item.is_active ? 'status-active' : 'status-inactive'}">${item.is_active ? '✅ 有效' : '⛔ 停用'}</span></td>
-          <td>
-            <button class="btn ${item.is_active ? 'btn-warning' : 'btn-success'}" onclick="toggleCode(${item.id}, ${!item.is_active})" style="padding:4px 12px;font-size:12px;">${item.is_active ? '停用' : '启用'}</button>
-            <button class="btn btn-danger" onclick="deleteCode(${item.id})" style="padding:4px 12px;font-size:12px;">删除</button>
-          </td>
-        </tr>
-      `).join('');
+        const res = await supabaseAdminFetch('access_codes?select=*&order=id.asc');
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const tbody = document.getElementById('codeList');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty">暂无使用码</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(function(item) {
+            return '<tr>' +
+                '<td>' + item.id + '</td>' +
+                '<td><span class="code-badge">' + item.code + '</span></td>' +
+                '<td>' + (item.remark || '-') + '</td>' +
+                '<td><span class="status-badge ' + (item.is_active ? 'status-active' : 'status-inactive') + '">' + (item.is_active ? '✅ 有效' : '⛔ 停用') + '</span></td>' +
+                '<td>' +
+                '<button class="btn ' + (item.is_active ? 'btn-warning' : 'btn-success') + '" onclick="toggleCode(' + item.id + ', ' + (!item.is_active) + ')" style="padding:4px 12px;font-size:12px;">' + (item.is_active ? '停用' : '启用') + '</button> ' +
+                '<button class="btn btn-danger" onclick="deleteCode(' + item.id + ')" style="padding:4px 12px;font-size:12px;">删除</button>' +
+                '</td>' +
+                '</tr>';
+        }).join('');
     } catch(e) {
-      document.getElementById('codeList').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
+        document.getElementById('codeList').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
     }
-  }
+}
 
-  async function addCode() {
+async function addCode() {
     const code = document.getElementById('newCode').value.trim();
     const remark = document.getElementById('newRemark').value.trim();
     if (code.length !== 18) { alert('请输入18位使用码'); return; }
     try {
-      await supabaseAdminFetch('access_codes', {
-        method: 'POST',
-        body: JSON.stringify({ code, remark, is_active: true })
-      });
-      document.getElementById('newCode').value = '';
-      document.getElementById('newRemark').value = '';
-      loadCodes();
+        await supabaseAdminFetch('access_codes', {
+            method: 'POST',
+            body: JSON.stringify({ code: code, remark: remark, is_active: true })
+        });
+        document.getElementById('newCode').value = '';
+        document.getElementById('newRemark').value = '';
+        loadCodes();
     } catch(e) { alert('添加失败'); }
-  }
+}
 
-  async function toggleCode(id, newStatus) {
+async function toggleCode(id, newStatus) {
     try {
-      await supabaseAdminFetch(`access_codes?id=eq.${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_active: newStatus })
-      });
-      loadCodes();
+        await supabaseAdminFetch('access_codes?id=eq.' + id, {
+            method: 'PATCH',
+            body: JSON.stringify({ is_active: newStatus })
+        });
+        loadCodes();
     } catch(e) { alert('操作失败'); }
-  }
+}
 
-  async function deleteCode(id) {
+async function deleteCode(id) {
     if (!confirm('确定删除吗？')) return;
     try {
-      await supabaseAdminFetch(`access_codes?id=eq.${id}`, { method: 'DELETE' });
-      loadCodes();
+        await supabaseAdminFetch('access_codes?id=eq.' + id, { method: 'DELETE' });
+        loadCodes();
     } catch(e) { alert('删除失败'); }
-  }
+}
 
-  // ========== 文章 CRUD ==========
-  async function loadArticles() {
+// ========== 文章 ==========
+async function loadArticles() {
     try {
-      const res = await supabaseAdminFetch('articles?select=*&order=id.desc');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const tbody = document.getElementById('articleList');
-      if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty">还没有文章</td></tr>';
-        return;
-      }
-      tbody.innerHTML = data.map(item => `
-        <tr>
-          <td>${item.id}</td>
-          <td><code>${item.slug}</code></td>
-          <td>${item.title}</td>
-          <td>${new Date(item.created_at).toLocaleString()}</td>
-          <td>
-            <button class="btn btn-primary" onclick="editArticle(${item.id})" style="padding:4px 12px;font-size:12px;">✏️ 编辑</button>
-            <button class="btn btn-danger" onclick="deleteArticle(${item.id})" style="padding:4px 12px;font-size:12px;">🗑️ 删除</button>
-          </td>
-        </tr>
-      `).join('');
+        const res = await supabaseAdminFetch('articles?select=*&order=id.desc');
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const tbody = document.getElementById('articleList');
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty">还没有文章</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(function(item) {
+            return '<tr>' +
+                '<td>' + item.id + '</td>' +
+                '<td><code>' + item.slug + '</code></td>' +
+                '<td>' + item.title + '</td>' +
+                '<td>' + new Date(item.created_at).toLocaleString() + '</td>' +
+                '<td>' +
+                '<button class="btn btn-primary" onclick="editArticle(' + item.id + ')" style="padding:4px 12px;font-size:12px;">✏️ 编辑</button> ' +
+                '<button class="btn btn-danger" onclick="deleteArticle(' + item.id + ')" style="padding:4px 12px;font-size:12px;">🗑️ 删除</button>' +
+                '</td>' +
+                '</tr>';
+        }).join('');
     } catch(e) {
-      document.getElementById('articleList').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
+        document.getElementById('articleList').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
     }
-  }
+}
 
-  function openArticleModal(data) {
-    const modal = document.getElementById('articleModal');
+function openArticleModal(data) {
+    var modal = document.getElementById('articleModal');
     if (data) {
-      document.getElementById('articleModalTitle').textContent = '✏️ 编辑文章';
-      document.getElementById('editArticleId').value = data.id;
-      document.getElementById('editSlug').value = data.slug;
-      document.getElementById('editTitle').value = data.title;
-      document.getElementById('editContent').value = data.content;
-      document.getElementById('slugPreview').textContent = data.slug;
+        document.getElementById('articleModalTitle').textContent = '✏️ 编辑文章';
+        document.getElementById('editArticleId').value = data.id;
+        document.getElementById('editSlug').value = data.slug;
+        document.getElementById('editTitle').value = data.title;
+        document.getElementById('editContent').value = data.content;
+        document.getElementById('slugPreview').textContent = data.slug;
     } else {
-      document.getElementById('articleModalTitle').textContent = '✏️ 写新文章';
-      document.getElementById('editArticleId').value = '';
-      document.getElementById('editSlug').value = '';
-      document.getElementById('editTitle').value = '';
-      document.getElementById('editContent').value = '';
-      document.getElementById('slugPreview').textContent = '...';
+        document.getElementById('articleModalTitle').textContent = '✏️ 写新文章';
+        document.getElementById('editArticleId').value = '';
+        document.getElementById('editSlug').value = '';
+        document.getElementById('editTitle').value = '';
+        document.getElementById('editContent').value = '';
+        document.getElementById('slugPreview').textContent = '...';
     }
     modal.classList.add('active');
-  }
+}
 
-  function closeArticleModal() {
+function closeArticleModal() {
     document.getElementById('articleModal').classList.remove('active');
-  }
+}
 
-  document.getElementById('editSlug').addEventListener('input', function() {
+document.getElementById('editSlug').addEventListener('input', function() {
     document.getElementById('slugPreview').textContent = this.value || '...';
-  });
+});
 
-  async function saveArticle() {
-    const id = document.getElementById('editArticleId').value;
-    const slug = document.getElementById('editSlug').value.trim();
-    const title = document.getElementById('editTitle').value.trim();
-    const content = document.getElementById('editContent').value.trim();
+async function saveArticle() {
+    var id = document.getElementById('editArticleId').value;
+    var slug = document.getElementById('editSlug').value.trim();
+    var title = document.getElementById('editTitle').value.trim();
+    var content = document.getElementById('editContent').value.trim();
     if (!slug || !title || !content) { alert('请填写完整信息'); return; }
     if (!/^[a-zA-Z0-9\-]+$/.test(slug)) { alert('别名只能包含字母、数字和短横线(-)'); return; }
 
     try {
-      let url = 'articles';
-      let method = 'POST';
-      let body = { slug, title, content };
-      if (id) {
-        url = `articles?id=eq.${id}`;
-        method = 'PATCH';
-      }
-      const res = await supabaseAdminFetch(url, {
-        method: method,
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) { const err = await res.json(); alert(err.message || '保存失败'); return; }
-      closeArticleModal();
-      loadArticles();
+        var url = 'articles';
+        var method = 'POST';
+        var body = { slug: slug, title: title, content: content };
+        if (id) {
+            url = 'articles?id=eq.' + id;
+            method = 'PATCH';
+        }
+        var res = await supabaseAdminFetch(url, {
+            method: method,
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) { var err = await res.json(); alert(err.message || '保存失败'); return; }
+        closeArticleModal();
+        loadArticles();
     } catch(e) { alert('保存失败'); }
-  }
+}
 
-  async function editArticle(id) {
+async function editArticle(id) {
     try {
-      const res = await supabaseAdminFetch(`articles?id=eq.${id}`);
-      const data = await res.json();
-      if (data && data.length > 0) openArticleModal(data[0]);
+        var res = await supabaseAdminFetch('articles?id=eq.' + id);
+        var data = await res.json();
+        if (data && data.length > 0) openArticleModal(data[0]);
     } catch(e) { alert('加载文章失败'); }
-  }
+}
 
-  async function deleteArticle(id) {
+async function deleteArticle(id) {
     if (!confirm('确定删除吗？')) return;
     try {
-      await supabaseAdminFetch(`articles?id=eq.${id}`, { method: 'DELETE' });
-      loadArticles();
+        await supabaseAdminFetch('articles?id=eq.' + id, { method: 'DELETE' });
+        loadArticles();
     } catch(e) { alert('删除失败'); }
-  }
+}
 
-  document.getElementById('articleModal').addEventListener('click', function(e) {
+document.getElementById('articleModal').addEventListener('click', function(e) {
     if (e.target === this) closeArticleModal();
-  });
+});
 </script>
 </body>
 </html>
