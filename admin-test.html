@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>管理员登录测试</title>
+  <!-- 引入 bcryptjs -->
+  <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+</head>
+<body>
+
+<h2>管理员登录测试</h2>
+<input type="text" id="adminPassword" placeholder="输入密码">
+<button onclick="adminLogin()">登录</button>
+<p id="msg"></p>
+
+<script>
+// ===== 配置你的 Supabase 信息 =====
+var SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co';
+var SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';  
+
+// ===== 登录函数 =====
+function adminLogin() {
+    var pwd = document.getElementById('adminPassword').value;
+    var msg = document.getElementById('msg');
+
+    if (!pwd) {
+        msg.textContent = '请输入密码';
+        return;
+    }
+
+    // 1. 先查数据库，看能不能拿到数据
+    var url = SUPABASE_URL + '/rest/v1/admin_users?username=eq.admin&select=password_hash';
+
+    fetch(url, {
+        headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        }
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            msg.textContent = '查询失败，状态码: ' + response.status;
+            return;
+        }
+        return response.json();
+    })
+    .then(function(data) {
+        console.log('查询到的数据:', data);  // 打印到控制台
+        if (!data || data.length === 0) {
+            msg.textContent = '管理员账号不存在';
+            return;
+        }
+        // 2. 拿到数据后，用 bcrypt 比对密码
+        return bcrypt.compare(pwd, data[0].password_hash);
+    })
+    .then(function(isMatch) {
+        console.log('密码比对结果:', isMatch);  // 打印到控制台
+        if (isMatch === true) {
+            msg.textContent = '✅ 登录成功！';
+        } else if (isMatch === false) {
+            msg.textContent = '❌ 密码错误';
+        }
+    })
+    .catch(function(err) {
+        console.error('错误详情:', err);  // 打印到控制台
+        msg.textContent = '网络错误，请重试';
+    });
+}
+</script>
+
+</body>
+</html>
