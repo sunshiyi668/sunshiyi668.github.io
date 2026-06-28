@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>文章</title>
+  <title>文章详情</title>
   <style>
     body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.8; }
     .back { display: inline-block; margin-bottom: 20px; color: #4a9eff; text-decoration: none; }
     .back:hover { text-decoration: underline; }
     .content { background: #f9f9f9; padding: 30px; border-radius: 10px; min-height: 200px; }
     .loading { text-align: center; color: #999; padding: 50px 0; }
+    .error { color: red; text-align: center; padding: 50px 0; }
   </style>
 </head>
 <body>
@@ -18,53 +19,56 @@
 
   <script>
     // ============================================================
-    // ⚠️ 改成你自己的 Supabase 信息
+    // ⚠️ 修改成你自己的 Supabase 信息
     // ============================================================
-    const SUPABASE_URL = 'https://https://fihyvfmqmknrkwgjbxxs.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
+    var SUPABASE_URL = 'https://fihyvfmqmknrkwgjbxxs.supabase.co';
+    var SUPABASE_ANON_KEY = 'sb_publishable_DXbYKwzB6MLCAlQaKy26JQ_Y-H-MKFL';
     // ============================================================
 
-    const userCode = sessionStorage.getItem('user_code');
+    // 检查登录状态
+    var userCode = sessionStorage.getItem('user_code');
     if (!userCode) {
       window.location.href = '/index.html';
     }
 
-    const params = new URLSearchParams(window.location.search);
-    const slug = params.get('slug');
+    // 从 URL 获取文章别名
+    var params = new URLSearchParams(window.location.search);
+    var slug = params.get('slug');
 
     if (!slug) {
-      document.getElementById('articleContent').innerHTML = '<p style="color:red;">未指定文章</p>';
+      document.getElementById('articleContent').innerHTML = '<div class="error">未指定文章</div>';
     } else {
       loadArticle(slug);
     }
 
-    async function loadArticle(slug) {
-      try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/articles?slug=eq.${slug}&select=title,content`, {
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
-
-        if (!response.ok) throw new Error('加载失败');
-
-        const data = await response.json();
-
+    function loadArticle(slug) {
+      var url = SUPABASE_URL + '/rest/v1/articles?slug=eq.' + slug + '&select=title,content';
+      
+      fetch(url, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+        }
+      })
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error('请求失败，状态码: ' + response.status);
+        }
+        return response.json();
+      })
+      .then(function(data) {
         if (!data || data.length === 0) {
-          document.getElementById('articleContent').innerHTML = '<p style="color:red;">文章不存在</p>';
+          document.getElementById('articleContent').innerHTML = '<div class="error">文章不存在</div>';
           return;
         }
-
-        const article = data[0];
-        document.getElementById('articleContent').innerHTML = `
-          <h1>${article.title}</h1>
-          <hr>
-          <div>${article.content}</div>
-        `;
-      } catch (err) {
-        document.getElementById('articleContent').innerHTML = '<p style="color:red;">网络错误，请重试</p>';
-      }
+        var article = data[0];
+        document.getElementById('articleContent').innerHTML = 
+          '<h1>' + article.title + '</h1><hr><div>' + article.content + '</div>';
+      })
+      .catch(function(err) {
+        console.error('加载文章错误:', err);
+        document.getElementById('articleContent').innerHTML = '<div class="error">网络错误，请重试</div>';
+      });
     }
   </script>
 </body>
