@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/supabase.js": {
-      "runtime": "now-node@18"
-    }
-  }
-}
